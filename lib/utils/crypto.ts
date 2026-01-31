@@ -6,11 +6,30 @@ import type { KYCData, ZKProof } from '@/lib/types/kyc';
  * Generate a SHA-256 hash of the input data
  */
 export async function hashData(data: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const dataBuffer = encoder.encode(data);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', dataBuffer);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  try {
+    if (!data || typeof data !== 'string') {
+      throw new Error(`Invalid input data: ${data}`);
+    }
+    
+    if (typeof crypto === 'undefined' || !crypto.subtle) {
+      throw new Error('Web Crypto API not available');
+    }
+    
+    const encoder = new TextEncoder();
+    const dataBuffer = encoder.encode(data);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', dataBuffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    
+    if (!hashHex || hashHex.length !== 64) {
+      throw new Error(`Invalid hash generated: ${hashHex}`);
+    }
+    
+    return hashHex;
+  } catch (error) {
+    console.error('Hash generation failed:', error);
+    throw error;
+  }
 }
 
 /**

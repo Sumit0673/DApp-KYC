@@ -81,7 +81,7 @@ export const ARBITRUM_SEPOLIA_CONFIG = {
 } as const;
 
 export const ARBITRUM_MAINNET_CONFIG = {
-  chainId: 42161,
+  chainId: 421614,
   name: 'arbitrum-mainnet',
   workerpoolAddress: '0x2C06263943180Cc024dAFfeEe15612DB6e5fD248',
   dataProtectorSubgraph: 'https://thegraph.arbitrum.iex.ec/api/subgraphs/id/Ep5zs5zVr4tDiVuQJepUu51e5eWYJpka624X4DMBxe3u',

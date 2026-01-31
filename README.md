@@ -134,7 +134,7 @@ const zkProof = await generateFullKYCProof(kycData, userAddress, {
 
 Update environment variables:
 ```env
-NEXT_PUBLIC_CHAIN_ID=42161
+NEXT_PUBLIC_CHAIN_ID=421614
 ```
 
 The app automatically uses the correct network config based on chain ID.
@@ -275,7 +275,7 @@ Replace the simulated proof generation in `lib/services/zkproof.ts` with actual 
 - Workerpool: `0xB967057a21dc6A66A29721d96b8Aa7454B7c383F`
 
 ### Arbitrum Mainnet
-- Chain ID: 42161
+- Chain ID: 421614
 - Workerpool: `0x2C06263943180Cc024dAFfeEe15612DB6e5fD248`
 
 ## Getting Tokens

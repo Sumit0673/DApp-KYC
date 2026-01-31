@@ -25,6 +25,8 @@ export default function KYCVerificationPage() {
     disconnect,
     switchToArbitrumSepolia,
     clearError,
+    provider,
+    chainId,
   } = useWallet();
 
   const {
@@ -38,7 +40,7 @@ export default function KYCVerificationPage() {
     error: verificationError,
     startVerification,
     reset,
-  } = useKYCVerification(address);
+  } = useKYCVerification(address, provider, chainId);
 
   const handleSubmit = async (kycData: KYCData) => {
     if (!isConnected) {

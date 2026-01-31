@@ -12,7 +12,7 @@ export interface WalletState {
 }
 
 const ARBITRUM_SEPOLIA_CHAIN_ID = 421614;
-const ARBITRUM_MAINNET_CHAIN_ID = 42161;
+const ARBITRUM_MAINNET_CHAIN_ID = 421614;
 
 export function useWallet() {
   const [walletState, setWalletState] = useState<WalletState>({
@@ -39,8 +39,8 @@ export function useWallet() {
     if (!ethereum) return;
 
     try {
-      const accounts = await ethereum.request({ method: 'eth_accounts' });
-      const chainId = await ethereum.request({ method: 'eth_chainId' });
+      const accounts = await ethereum.request({ method: 'eth_accounts' }) as string[];
+      const chainId = await ethereum.request({ method: 'eth_chainId' }) as string;
       const chainIdNum = parseInt(chainId, 16);
 
       if (accounts && accounts.length > 0) {
@@ -69,8 +69,8 @@ export function useWallet() {
     setError(null);
 
     try {
-      const accounts = await ethereum.request({ method: 'eth_requestAccounts' });
-      const chainId = await ethereum.request({ method: 'eth_chainId' });
+      const accounts = await ethereum.request({ method: 'eth_requestAccounts' }) as string[];
+      const chainId = await ethereum.request({ method: 'eth_chainId' }) as string;
       const chainIdNum = parseInt(chainId, 16);
 
       setWalletState({
@@ -149,19 +149,21 @@ export function useWallet() {
     const ethereum = getEthereum();
     if (!ethereum) return;
 
-    const handleAccountsChanged = (accounts: string[]) => {
-      if (accounts.length === 0) {
+    const handleAccountsChanged = (accounts: unknown) => {
+      const accs = accounts as string[];
+      if (accs.length === 0) {
         disconnect();
       } else {
         setWalletState(prev => ({
           ...prev,
-          address: accounts[0],
+          address: accs[0],
         }));
       }
     };
 
-    const handleChainChanged = (chainId: string) => {
-      const chainIdNum = parseInt(chainId, 16);
+    const handleChainChanged = (chainId: unknown) => {
+      const chainIdStr = chainId as string;
+      const chainIdNum = parseInt(chainIdStr, 16);
       setWalletState(prev => ({
         ...prev,
         chainId: chainIdNum,

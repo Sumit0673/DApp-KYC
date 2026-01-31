@@ -12,6 +12,13 @@ import { simulateVerification } from '@/lib/services/iexec';
 import { generateFullKYCProof, verifyZKProof } from '@/lib/services/zkproof';
 import { generateMockTransactionHash } from '@/lib/services/contract';
 import { encryptForTEE, createCommitment } from '@/lib/utils/crypto';
+import { logger } from '@/lib/logger';
+import { 
+  initializeDataProtector, 
+  protectKYCData, 
+  grantVerificationAccess, 
+  executeVerificationTask 
+} from '@/lib/services/iexec';
 
 export interface KYCVerificationState {
   status: VerificationStatus;
@@ -34,7 +41,7 @@ const VERIFICATION_STEPS = [
   'Complete',
 ];
 
-export function useKYCVerification(userAddress: string | null) {
+export function useKYCVerification(userAddress: string | null, provider?: unknown, chainId?: number) {
   const [state, setState] = useState<KYCVerificationState>({
     status: 'idle',
     currentStep: 0,
@@ -110,9 +117,62 @@ export function useKYCVerification(userAddress: string | null) {
       // Step 3: TEE Verification (iExec)
       updateState({ status: 'verifying', currentStep: 4 });
       
-      // In production, this would use the actual iExec DataProtector
-      // For now, we simulate the TEE verification
-      const verificationResult = await simulateVerification(kycData, userAddress);
+      let verificationResult: VerificationResult;
+      
+      if (provider) {
+        // Check if user is on the correct network (Arbitrum Sepolia)
+        const requiredChainId = 421614; // Arbitrum Sepolia
+        if (chainId !== requiredChainId) {
+          throw new Error(`Please switch to Arbitrum Sepolia testnet (Chain ID: ${requiredChainId}). Current chain: ${chainId}`);
+        }
+        
+        logger.info('Wallet provider available, checking connection', {
+          providerType: typeof provider,
+          hasRequest: typeof (provider as any)?.request === 'function',
+          chainId,
+          userAddress
+        });
+        
+        // Test provider connection
+        try {
+          const testAccounts = await (provider as any).request({ method: 'eth_accounts' });
+          logger.info('Provider connection test successful', { accountsCount: testAccounts?.length || 0 });
+        } catch (providerError) {
+          logger.error('Provider connection test failed', { error: providerError });
+          throw new Error('Wallet connection is not working properly. Please reconnect your wallet.');
+        }
+        
+        const dataProtector = await initializeDataProtector(provider, true); // Use testnet
+        if (!dataProtector) {
+          throw new Error('Failed to initialize iExec DataProtector - check wallet connection and network');
+        }
+        
+        if (!dataProtector.core || typeof dataProtector.core.protectData !== 'function') {
+          throw new Error('iExec DataProtector core not properly initialized - API may have changed');
+        }
+        
+        // Protect the KYC data
+        logger.info('Protecting KYC data with iExec');
+        const protectedKYCData = await protectKYCData(dataProtector, kycData, userAddress);
+        
+        // Grant access to the iExec app
+        logger.info('Granting access to iExec KYC verification app');
+        const accessGranted = await grantVerificationAccess(dataProtector, protectedKYCData.address, userAddress);
+        if (!accessGranted) {
+          throw new Error('Failed to grant access to verification app');
+        }
+        
+        // Execute the verification task
+        logger.info('Executing KYC verification task in TEE');
+        const iexecResult = await executeVerificationTask(dataProtector, protectedKYCData.address, true);
+        verificationResult = iexecResult.result;
+        
+        logger.info('TEE verification completed', { taskId: iexecResult.taskId, isValid: verificationResult.isValid });
+      } else {
+        // Fallback to simulation for development
+        logger.warn('No wallet provider available, using simulated verification');
+        verificationResult = await simulateVerification(kycData, userAddress);
+      }
       
       if (!verificationResult.isValid) {
         updateState({ 
@@ -139,7 +199,7 @@ export function useKYCVerification(userAddress: string | null) {
       });
 
     } catch (err) {
-      console.error('[v0] Verification failed:', err);
+      logger.error('KYC verification failed', { error: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : undefined });
       updateState({ 
         error: err instanceof Error ? err.message : 'Verification failed. Please try again.',
         status: 'failed' 

@@ -2,10 +2,31 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { IExecDataProtectorDeserializer } from '@iexec/dataprotector-deserializer';
+import winston from 'winston';
 
 const main = async () => {
-  console.log('Starting KYC Verification iApp...: {}', process.argv);
   const { IEXEC_OUT } = process.env;
+
+  // Setup logger
+  const logger = winston.createLogger({
+    level: 'info',
+    format: winston.format.combine(
+      winston.format.timestamp(),
+      winston.format.errors({ stack: true }),
+      winston.format.json()
+    ),
+    transports: [
+      new winston.transports.File({ filename: path.join(IEXEC_OUT, 'app.log') }),
+      new winston.transports.Console({
+        format: winston.format.combine(
+          winston.format.colorize(),
+          winston.format.simple()
+        )
+      })
+    ]
+  });
+
+  logger.info('Starting KYC Verification iApp', { argv: process.argv });
 
   let computedJsonObj = {};
 
@@ -16,7 +37,7 @@ const main = async () => {
     // Process protected KYC data in bulk
     const bulkSize = parseInt(process.env.IEXEC_BULK_SLICE_SIZE);
     if (bulkSize > 0) {
-      console.log(`Got ${bulkSize} protected KYC documents to process in bulk!`);
+      logger.info(`Got ${bulkSize} protected KYC documents to process in bulk!`);
       for (let i = 1; i <= bulkSize; i++) {
         try {
           const deserializer = new IExecDataProtectorDeserializer({
@@ -31,7 +52,7 @@ const main = async () => {
           const documentType = await deserializer.getValue('documentType', 'string');
           const userId = await deserializer.getValue('userId', 'string');
 
-          console.log(`Processing KYC document ${i} for user: ${userId}`);
+          logger.info(`Processing KYC document ${i} for user: ${userId}`, { userId, documentType });
 
           // Calculate document hash for verification
           const docHash = crypto.createHash('sha256').update(documentData).digest('hex');
@@ -56,7 +77,7 @@ const main = async () => {
           documentHashes.push(docHash);
 
         } catch (e) {
-          console.log(`Error processing KYC document ${i}:`, e.message);
+          logger.error(`Error processing KYC document ${i}`, { error: e.message, documentIndex: i });
           verificationResults.push({
             documentIndex: i,
             error: e.message,
@@ -68,11 +89,11 @@ const main = async () => {
 
     // Process input files (additional documents)
     const { IEXEC_INPUT_FILES_NUMBER, IEXEC_IN } = process.env;
-    console.log(`Received ${IEXEC_INPUT_FILES_NUMBER} additional input files`);
+    logger.info(`Received ${IEXEC_INPUT_FILES_NUMBER} additional input files`);
     for (let i = 1; i <= IEXEC_INPUT_FILES_NUMBER; i++) {
       const inputFileName = process.env[`IEXEC_INPUT_FILE_NAME_${i}`];
       const inputFilePath = `${IEXEC_IN}/${inputFileName}`;
-      console.log(`Processing input file ${i}: ${inputFileName}`);
+      logger.info(`Processing input file ${i}: ${inputFileName}`);
 
       // Read and hash the input file
       const fileData = await fs.readFile(inputFilePath);
@@ -89,14 +110,14 @@ const main = async () => {
     let verificationKey = null;
     if (IEXEC_APP_DEVELOPER_SECRET) {
       verificationKey = IEXEC_APP_DEVELOPER_SECRET;
-      console.log('Using app developer secret for enhanced verification');
+      logger.info('Using app developer secret for enhanced verification');
     }
 
     const { IEXEC_REQUESTER_SECRET_1 } = process.env;
     let complianceApiKey = null;
     if (IEXEC_REQUESTER_SECRET_1) {
       complianceApiKey = IEXEC_REQUESTER_SECRET_1;
-      console.log('Using requester secret for compliance checks');
+      logger.info('Using requester secret for compliance checks');
     }
 
     // Generate comprehensive KYC verification report
@@ -120,7 +141,7 @@ const main = async () => {
     };
   } catch (e) {
     // Handle errors
-    console.log(e);
+    logger.error('An error occurred during KYC verification', { error: e.message, stack: e.stack });
 
     // Build the "computed.json" object with an error message
     computedJsonObj = {
